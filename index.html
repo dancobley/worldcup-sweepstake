@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>World Cup 2026 — Cobbers Sweepstake</title>
+  <!-- Tailwind (Play CDN, JIT in-browser) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 + Babel (no build step needed) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+  <style> body { background:#020617; } </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ---- Static data -------------------------------------------------------
+const OWNERS = {
+  "Mexico": ["Cyprien"], "South Africa": ["Rohit", "Nathan"], "Korea Republic": ["Anton", "Will"], "Czechia": ["Tom Claude-leone", "Emma"],
+  "Switzerland": ["Eliott S"], "Canada": ["Taz"], "Bosnia and Herzegovina": ["Nasir"], "Qatar": ["Adam", "Chris"],
+  "Brazil": ["Phyllis", "Zella"], "Morocco": ["Alana"], "Scotland": ["Fred"], "Haiti": ["Max"],
+  "USA": ["Aidan"], "Australia": ["Camille"], "Paraguay": ["Dan Cobbers", "Lola"], "Turkiye": ["Bilal"],
+  "Germany": ["Amaan"], "Ivory Coast": ["Cath"], "Ecuador": ["Humza", "Hussein"], "Curacao": ["Loren"],
+  "Netherlands": ["Gijs"], "Japan": ["Lau"], "Sweden": ["Elliot H", "Hem"], "Tunisia": ["Vinesh"],
+  "Egypt": ["Ricky"], "IR Iran": ["Nikki"], "Belgium": ["Jem"], "New Zealand": ["Joakim"],
+  "Spain": ["Alastair"], "Uruguay": ["Nick G"], "Cape Verde": ["Isa B", "Hugo"], "Saudi Arabia": ["Skander"],
+  "France": ["Ben Cobbers", "Marie"], "Norway": ["Ally"], "Senegal": ["Cata", "Ahmed"], "Iraq": ["Sacha", "Jake"],
+  "Argentina": ["Anissa"], "Austria": ["Ilakya"], "Algeria": ["Nina"], "Jordan": ["Eva", "Eesha"],
+  "Colombia": ["Maisy"], "Portugal": ["Raina"], "Congo DR": ["Nick P"], "Uzbekistan": ["Gaby"],
+  "England": ["Priyesh"], "Ghana": ["Gaspard"], "Croatia": ["Katie"], "Panama": ["Andy", "Natalia"],
+};
+
+const FLAGS = {
+  "Mexico": "🇲🇽", "South Africa": "🇿🇦", "Korea Republic": "🇰🇷", "Czechia": "🇨🇿",
+  "Switzerland": "🇨🇭", "Canada": "🇨🇦", "Bosnia and Herzegovina": "🇧🇦", "Qatar": "🇶🇦",
+  "Brazil": "🇧🇷", "Morocco": "🇲🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Haiti": "🇭🇹",
+  "USA": "🇺🇸", "Australia": "🇦🇺", "Paraguay": "🇵🇾", "Turkiye": "🇹🇷",
+  "Germany": "🇩🇪", "Ivory Coast": "🇨🇮", "Ecuador": "🇪🇨", "Curacao": "🇨🇼",
+  "Netherlands": "🇳🇱", "Japan": "🇯🇵", "Sweden": "🇸🇪", "Tunisia": "🇹🇳",
+  "Egypt": "🇪🇬", "IR Iran": "🇮🇷", "Belgium": "🇧🇪", "New Zealand": "🇳🇿",
+  "Spain": "🇪🇸", "Uruguay": "🇺🇾", "Cape Verde": "🇨🇻", "Saudi Arabia": "🇸🇦",
+  "France": "🇫🇷", "Norway": "🇳🇴", "Senegal": "🇸🇳", "Iraq": "🇮🇶",
+  "Argentina": "🇦🇷", "Austria": "🇦🇹", "Algeria": "🇩🇿", "Jordan": "🇯🇴",
+  "Colombia": "🇨🇴", "Portugal": "🇵🇹", "Congo DR": "🇨🇩", "Uzbekistan": "🇺🇿",
+  "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "Ghana": "🇬🇭", "Croatia": "🇭🇷", "Panama": "🇵🇦",
+};
+
+const ALIAS = {
+  "South Korea": "Korea Republic", "Czech Republic": "Czechia", "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+  "Turkey": "Turkiye", "Curaçao": "Curacao", "Curacao": "Curacao", "Iran": "IR Iran", "DR Congo": "Congo DR",
+};
+const canon = (n) => ALIAS[n] || n;
+
+const FEED_URLS = [
+  { url: "https://raw.githubusercontent.com/upbound-web/worldcup-live.json/master/2026/worldcup.json", label: "live feed" },
+  { url: "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json", label: "openfootball" },
+];
+
+// [name, rank, pts, w, d, l, gf, ga] — curated snapshot (25 Jun 2026), shown where the feed is behind
+const INIT = {
+  A: [["Mexico",1,9,3,0,0,6,0],["South Africa",2,4,1,1,1,2,3],["Korea Republic",3,3,1,0,2,2,3],["Czechia",4,1,0,1,2,2,6]],
+  B: [["Switzerland",1,7,2,1,0,7,3],["Canada",2,4,1,1,1,8,3],["Bosnia and Herzegovina",3,4,1,1,1,5,6],["Qatar",4,1,0,1,2,2,10]],
+  C: [["Brazil",1,7,2,1,0,7,1],["Morocco",2,7,2,1,0,6,3],["Scotland",3,3,1,0,2,1,4],["Haiti",4,0,0,0,3,2,8]],
+  D: [["USA",1,6,2,0,0,6,1],["Australia",2,3,1,0,1,2,2],["Paraguay",3,3,1,0,1,2,4],["Turkiye",4,0,0,0,2,0,3]],
+  E: [["Germany",1,6,2,0,0,9,2],["Ivory Coast",2,3,1,0,1,2,2],["Ecuador",3,1,0,1,1,0,1],["Curacao",4,1,0,1,1,1,7]],
+  F: [["Netherlands",1,4,1,1,0,7,3],["Japan",2,4,1,1,0,6,2],["Sweden",3,3,1,0,1,6,6],["Tunisia",4,0,0,0,2,1,9]],
+  G: [["Egypt",1,4,1,1,0,4,2],["IR Iran",2,2,0,2,0,2,2],["Belgium",3,2,0,2,0,1,1],["New Zealand",4,1,0,1,1,3,5]],
+  H: [["Spain",1,4,1,1,0,4,0],["Uruguay",2,2,0,2,0,3,3],["Cape Verde",3,2,0,2,0,2,2],["Saudi Arabia",4,1,0,1,1,1,5]],
+  I: [["France",1,6,2,0,0,6,1],["Norway",2,6,2,0,0,7,3],["Senegal",3,0,0,0,2,3,6],["Iraq",4,0,0,0,2,1,7]],
+  J: [["Argentina",1,6,2,0,0,5,0],["Austria",2,3,1,0,1,3,3],["Algeria",3,3,1,0,1,2,4],["Jordan",4,0,0,0,2,2,5]],
+  K: [["Colombia",1,6,2,0,0,4,1],["Portugal",2,4,1,1,0,6,1],["Congo DR",3,1,0,1,1,1,2],["Uzbekistan",4,0,0,0,2,1,8]],
+  L: [["England",1,4,1,1,0,4,2],["Ghana",2,4,1,1,0,1,0],["Croatia",3,3,1,0,1,3,4],["Panama",4,0,0,0,2,0,2]],
+};
+
+function buildTeams(init) {
+  const out = {};
+  Object.entries(init).forEach(([g, rows]) => {
+    out[g] = rows.map((r) => ({ name: r[0], rank: r[1], pts: r[2], w: r[3], d: r[4], l: r[5], gf: r[6], ga: r[7] }))
+      .sort((a, b) => a.rank - b.rank);
+  });
+  return out;
+}
+const INIT_GOALS = {};
+Object.values(INIT).forEach((rows) => rows.forEach((r) => { INIT_GOALS[r[0]] = { gf: r[6], ga: r[7] }; }));
+const matchesPlayed = (rows) => rows.reduce((s, t) => s + t.w + t.d + t.l, 0) / 2;
+
+function parseFeed(matches) {
+  const groups = {}; const ko = {};
+  matches.forEach((m) => {
+    const ft = m.score && Array.isArray(m.score.ft) ? m.score.ft : null;
+    if (m.group && /^Group /.test(m.group)) {
+      const L = m.group.replace("Group ", "").trim();
+      const t1 = canon(m.team1), t2 = canon(m.team2);
+      groups[L] = groups[L] || {};
+      [t1, t2].forEach((t) => { if (!groups[L][t]) groups[L][t] = { name: t, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }; });
+      if (ft) {
+        const [a, b] = ft, A = groups[L][t1], B = groups[L][t2];
+        A.gf += a; A.ga += b; B.gf += b; B.ga += a;
+        if (a > b) { A.w++; A.pts += 3; B.l++; }
+        else if (b > a) { B.w++; B.pts += 3; A.l++; }
+        else { A.d++; B.d++; A.pts++; B.pts++; }
+      }
+    } else {
+      const t1 = canon(m.team1), t2 = canon(m.team2);
+      const resolved = OWNERS[t1] && OWNERS[t2];
+      if (resolved && ft) {
+        let num = m.num;
+        if (!num) { const r = (m.round || "").toLowerCase(); num = r.includes("third") ? 103 : r.includes("final") ? 104 : null; }
+        if (num) {
+          const [a, b] = ft, p = m.score.p;
+          let winner = null;
+          if (Array.isArray(p)) winner = p[0] > p[1] ? t1 : t2;
+          else if (a > b) winner = t1; else if (b > a) winner = t2;
+          ko[num] = { a: t1, b: t2, aScore: a, bScore: b, winner };
+        }
+      }
+    }
+  });
+  const ranked = {};
+  Object.entries(groups).forEach(([L, obj]) => {
+    const arr = Object.values(obj).map((t) => ({ ...t, gd: t.gf - t.ga }));
+    arr.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.name.localeCompare(y.name));
+    ranked[L] = arr.map((t, i) => ({ name: t.name, rank: i + 1, pts: t.pts, w: t.w, d: t.d, l: t.l, gf: t.gf, ga: t.ga }));
+  });
+  return { ranked, ko };
+}
+
+function mergeGroups(feedRanked, snapshot) {
+  const merged = {};
+  Object.keys(snapshot).forEach((L) => {
+    const f = feedRanked[L];
+    const useFeed = f && f.length === 4 && matchesPlayed(f) >= matchesPlayed(snapshot[L]);
+    merged[L] = useFeed ? f : snapshot[L];
+  });
+  return merged;
+}
+
+const KO = [
+  { m: 73, r: "R32", a: { g: "A", p: 2 }, b: { g: "B", p: 2 } },
+  { m: 74, r: "R32", a: { g: "E", p: 1 }, b: { t: "A/B/C/D/F" } },
+  { m: 75, r: "R32", a: { g: "F", p: 1 }, b: { g: "C", p: 2 } },
+  { m: 76, r: "R32", a: { g: "C", p: 1 }, b: { g: "F", p: 2 } },
+  { m: 77, r: "R32", a: { g: "I", p: 1 }, b: { t: "C/D/F/G/H" } },
+  { m: 78, r: "R32", a: { g: "E", p: 2 }, b: { g: "I", p: 2 } },
+  { m: 79, r: "R32", a: { g: "A", p: 1 }, b: { t: "C/E/F/H/I" } },
+  { m: 80, r: "R32", a: { g: "L", p: 1 }, b: { t: "E/H/I/J/K" } },
+  { m: 81, r: "R32", a: { g: "D", p: 1 }, b: { t: "B/E/F/I/J" } },
+  { m: 82, r: "R32", a: { g: "G", p: 1 }, b: { t: "A/E/H/I/J" } },
+  { m: 83, r: "R32", a: { g: "K", p: 2 }, b: { g: "L", p: 2 } },
+  { m: 84, r: "R32", a: { g: "H", p: 1 }, b: { g: "J", p: 2 } },
+  { m: 85, r: "R32", a: { g: "B", p: 1 }, b: { t: "E/F/G/I/J" } },
+  { m: 86, r: "R32", a: { g: "J", p: 1 }, b: { g: "H", p: 2 } },
+  { m: 87, r: "R32", a: { g: "K", p: 1 }, b: { t: "D/E/I/J/L" } },
+  { m: 88, r: "R32", a: { g: "D", p: 2 }, b: { g: "G", p: 2 } },
+  { m: 89, r: "R16", a: { w: 74 }, b: { w: 77 } },
+  { m: 90, r: "R16", a: { w: 73 }, b: { w: 75 } },
+  { m: 91, r: "R16", a: { w: 76 }, b: { w: 78 } },
+  { m: 92, r: "R16", a: { w: 79 }, b: { w: 80 } },
+  { m: 93, r: "R16", a: { w: 83 }, b: { w: 84 } },
+  { m: 94, r: "R16", a: { w: 81 }, b: { w: 82 } },
+  { m: 95, r: "R16", a: { w: 86 }, b: { w: 88 } },
+  { m: 96, r: "R16", a: { w: 85 }, b: { w: 87 } },
+  { m: 97, r: "QF", a: { w: 89 }, b: { w: 90 } },
+  { m: 98, r: "QF", a: { w: 93 }, b: { w: 94 } },
+  { m: 99, r: "QF", a: { w: 91 }, b: { w: 92 } },
+  { m: 100, r: "QF", a: { w: 95 }, b: { w: 96 } },
+  { m: 101, r: "SF", a: { w: 97 }, b: { w: 98 } },
+  { m: 102, r: "SF", a: { w: 99 }, b: { w: 100 } },
+  { m: 104, r: "Final", a: { w: 101 }, b: { w: 102 } },
+  { m: 103, r: "3rd", a: { l: 101 }, b: { l: 102 } },
+];
+
+const ROUND_COLS = [
+  { key: "R32", label: "Round of 32", ms: [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88] },
+  { key: "R16", label: "Round of 16", ms: [89,90,91,92,93,94,95,96] },
+  { key: "QF", label: "Quarter-finals", ms: [97,98,99,100] },
+  { key: "SF", label: "Semi-finals", ms: [101,102] },
+  { key: "Final", label: "Final", ms: [104,103] },
+];
+
+const ownerStr = (name) => (OWNERS[name] || []).join(" & ");
+const KEY = "wc2026_cobbers";
+
+function App() {
+  const [teams, setTeams] = useState(() => buildTeams(INIT));
+  const [results, setResults] = useState({});
+  const [view, setView] = useState("groups");
+  const [status, setStatus] = useState("idle");
+  const [msg, setMsg] = useState("");
+  const [updated, setUpdated] = useState("25 Jun 2026, baked-in snapshot");
+  const lastAutoDay = useRef(null);
+  const resultsRef = useRef(results);
+  useEffect(() => { resultsRef.current = results; }, [results]);
+
+  const persist = useCallback((r, u) => { try { localStorage.setItem(KEY, JSON.stringify({ results: r, updated: u })); } catch (e) {} }, []);
+
+  const flat = Object.values(teams).flat();
+  const findByName = (n) => flat.find((t) => t.name === n);
+  const groupPos = (g, p) => teams[g] && teams[g].find((t) => t.rank === p);
+
+  function resolve(slot) {
+    if (!slot) return { tbd: true, label: "TBD" };
+    if (slot.g) { const t = groupPos(slot.g, slot.p); return t ? { team: t } : { tbd: true, label: (slot.p === 1 ? "Winner " : "Runner-up ") + slot.g }; }
+    if (slot.t) return { tbd: true, label: "3rd " + slot.t };
+    if (slot.w != null) { const r = results[slot.w]; if (r && r.winner) return { team: findByName(r.winner) }; return { tbd: true, label: "Winner M" + slot.w }; }
+    if (slot.l != null) { const r = results[slot.l]; if (r && r.winner) { const loser = r.a === r.winner ? r.b : r.a; return { team: findByName(loser) }; } return { tbd: true, label: "Loser M" + slot.l }; }
+    return { tbd: true, label: "TBD" };
+  }
+
+  function setWinner(m, side) {
+    const match = KO.find((k) => k.m === m);
+    const ra = resolve(match.a), rb = resolve(match.b);
+    if (ra.tbd || rb.tbd) return;
+    const win = side === "a" ? ra.team.name : rb.team.name;
+    const next = { ...resultsRef.current, [m]: { ...(resultsRef.current[m] || {}), a: ra.team.name, b: rb.team.name, winner: win } };
+    setResults(next); resultsRef.current = next; persist(next, updated);
+  }
+
+  const applyData = useCallback((parsed, label) => {
+    const merged = mergeGroups(parsed.ranked, buildTeams(INIT));
+    setTeams(merged);
+    const next = { ...resultsRef.current };
+    Object.entries(parsed.ko).forEach(([num, r]) => { next[num] = { ...next[num], ...r }; });
+    setResults(next); resultsRef.current = next;
+    const stamp = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short" }) + " · " + label;
+    setUpdated(stamp); persist(next, stamp);
+    setStatus("ok"); setMsg("Updated from " + label + ".");
+  }, [persist]);
+
+  const refresh = useCallback(async () => {
+    setStatus("loading"); setMsg("Fetching latest results…");
+    for (const f of FEED_URLS) {
+      try {
+        const res = await fetch(f.url, { cache: "no-store" });
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data && Array.isArray(data.matches)) { applyData(parseFeed(data.matches), f.label); return; }
+      } catch (e) { /* try next */ }
+    }
+    setStatus("error"); setMsg("Couldn't reach the live feed right now — showing the latest data. It will refresh next time the feed responds.");
+  }, [applyData]);
+
+  useEffect(() => {
+    try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s.results) { setResults(s.results); resultsRef.current = s.results; } if (s.updated) setUpdated(s.updated); } } catch (e) {}
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const tick = () => {
+      const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", day: "2-digit", hourCycle: "h23" }).formatToParts(new Date());
+      const h = parts.find((p) => p.type === "hour").value, min = parts.find((p) => p.type === "minute").value, day = parts.find((p) => p.type === "day").value;
+      if (h === "06" && min === "00" && lastAutoDay.current !== day) { lastAutoDay.current = day; refresh(); }
+    };
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-3 sm:p-5" style={{ fontFamily: "system-ui, sans-serif" }}>
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">🏆 World Cup 2026 — Cobbers Sweepstake</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Last updated: {updated}</p>
+            </div>
+            <button onClick={refresh} disabled={status === "loading"}
+              className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-semibold text-sm transition">
+              {status === "loading" ? "Refreshing…" : "↻ Refresh now"}
+            </button>
+          </div>
+          {msg ? <div className={"mt-2 text-xs rounded-md px-3 py-1.5 " + (status === "error" ? "bg-rose-950 text-rose-300" : status === "ok" ? "bg-emerald-950 text-emerald-300" : "bg-slate-800 text-slate-300")}>{msg}</div> : null}
+        </header>
+
+        <nav className="flex flex-wrap gap-1 mb-4 bg-slate-900 rounded-lg p-1">
+          {[["groups","Groups"],["bracket","Bracket"],["board","Leaderboard"],["losers","Loser Board"]].map(([k, lab]) => (
+            <button key={k} onClick={() => setView(k)}
+              className={"flex-1 min-w-[72px] px-3 py-1.5 rounded-md text-[13px] font-medium transition " + (view === k ? "bg-emerald-500 text-slate-950" : "text-slate-300 hover:bg-slate-800")}>
+              {lab}
+            </button>
+          ))}
+        </nav>
+
+        {view === "groups" && <Groups teams={teams} />}
+        {view === "bracket" && <Bracket resolve={resolve} results={results} setWinner={setWinner} />}
+        {view === "board" && <Board teams={teams} results={results} />}
+        {view === "losers" && <Losers teams={teams} />}
+
+        <footer className="mt-6 text-[11px] leading-relaxed text-slate-500 border-t border-slate-800 pt-3">
+          Results are computed from real match scores pulled live from a public World Cup JSON feed (openfootball / its live fork), fetched whenever the page opens or you tap Refresh. Where the feed hasn't caught up, a curated 25 Jun snapshot is shown, and live data takes over group-by-group as it arrives. Tap either team in a knockout tie to advance them manually (e.g. penalty shootouts) — saved in your browser.
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function Groups({ teams }) {
+  const posColor = (r) => r <= 2 ? "border-l-emerald-500" : r === 3 ? "border-l-amber-500" : "border-l-rose-600";
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {Object.entries(teams).map(([g, rows]) => (
+        <div key={g} className="bg-slate-900 rounded-xl p-3 border border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-bold text-sm text-slate-200">Group {g}</h2>
+            <span className="text-[10px] text-slate-500">Pld · GD · Pts</span>
+          </div>
+          <div className="space-y-1">
+            {rows.map((t) => {
+              const gd = (t.gf || 0) - (t.ga || 0);
+              return (
+                <div key={t.name} className={"flex items-center gap-2 bg-slate-950/60 rounded-md pl-2 pr-2 py-1.5 border-l-4 " + posColor(t.rank)}>
+                  <span className="text-base leading-none">{FLAGS[t.name]}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate">{t.name}</div>
+                    <div className="text-[11px] text-emerald-300/90 truncate">{ownerStr(t.name)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold tabular-nums">{t.pts}</div>
+                    <div className="text-[10px] text-slate-500 tabular-nums">{t.w + t.d + t.l}p · {gd >= 0 ? "+" : ""}{gd}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TeamRow({ res, onClick, isWinner, clickable }) {
+  if (res.tbd) return <div className="px-2 py-1.5 text-[11px] text-slate-500 italic truncate">{res.label}</div>;
+  const t = res.team;
+  return (
+    <button disabled={!clickable} onClick={onClick}
+      className={"w-full flex items-center gap-1.5 px-2 py-1.5 text-left transition " + (clickable ? "hover:bg-slate-800 cursor-pointer" : "cursor-default") + (isWinner ? " bg-emerald-500/15" : "")}>
+      <span className="text-sm leading-none">{FLAGS[t.name]}</span>
+      <div className="min-w-0 flex-1">
+        <div className={"text-xs font-semibold truncate " + (isWinner ? "text-emerald-300" : "")}>{t.name}</div>
+        <div className="text-[10px] text-slate-500 truncate">{ownerStr(t.name)}</div>
+      </div>
+      {isWinner ? <span className="text-emerald-400 text-xs">✓</span> : null}
+    </button>
+  );
+}
+
+function Bracket({ resolve, results, setWinner }) {
+  const [round, setRound] = useState("R32");
+  const col = ROUND_COLS.find((c) => c.key === round) || ROUND_COLS[0];
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1 mb-3">
+        {ROUND_COLS.map((c) => (
+          <button key={c.key} onClick={() => setRound(c.key)}
+            className={"px-3 py-1.5 rounded-md text-xs font-medium transition " + (round === c.key ? "bg-emerald-500 text-slate-950" : "bg-slate-800 text-slate-300 hover:bg-slate-700")}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {col.ms.map((m) => {
+          const match = KO.find((k) => k.m === m);
+          const ra = resolve(match.a), rb = resolve(match.b);
+          const r = results[m] || {};
+          const clickable = !ra.tbd && !rb.tbd;
+          const label = match.r === "3rd" ? "3rd place" : "M" + m;
+          return (
+            <div key={m} className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
+              <div className="text-[9px] text-slate-600 px-2 pt-1 flex justify-between">
+                <span>{label}</span>
+                {r.aScore != null ? <span className="tabular-nums text-slate-400">{r.aScore}–{r.bScore}</span> : null}
+              </div>
+              <TeamRow res={ra} clickable={clickable} isWinner={r.winner && ra.team && r.winner === ra.team.name} onClick={() => setWinner(m, "a")} />
+              <div className="h-px bg-slate-800" />
+              <TeamRow res={rb} clickable={clickable} isWinner={r.winner && rb.team && r.winner === rb.team.name} onClick={() => setWinner(m, "b")} />
+            </div>
+          );
+        })}
+      </div>
+      {col.key === "R32" ? <p className="mt-3 text-[11px] text-slate-500">Once both teams in a tie are known, tap a team to send them through. Winners and runners-up fill in automatically; third-place slots lock when the group stage ends.</p> : null}
+    </div>
+  );
+}
+
+function Board({ teams, results }) {
+  const eliminatedKO = new Set();
+  Object.values(results).forEach((r) => { if (r.winner && r.a && r.b) eliminatedKO.add(r.a === r.winner ? r.b : r.a); });
+  const rowsForTeam = (t, g) => {
+    let statusLabel, tone;
+    if (eliminatedKO.has(t.name)) { statusLabel = "Knocked out"; tone = "out"; }
+    else if (t.rank <= 2) { statusLabel = "Top 2 — qualifying"; tone = "in"; }
+    else if (t.rank === 3) { statusLabel = "3rd — on the bubble"; tone = "bubble"; }
+    else { statusLabel = "Bottom of group"; tone = "out"; }
+    return (OWNERS[t.name] || []).map((owner) => ({ owner, team: t.name, g, pos: t.rank, statusLabel, tone }));
+  };
+  const all = [];
+  Object.entries(teams).forEach(([g, rows]) => rows.forEach((t) => all.push(...rowsForTeam(t, g))));
+  const order = { in: 0, bubble: 1, out: 2 };
+  all.sort((a, b) => order[a.tone] - order[b.tone] || a.owner.localeCompare(b.owner));
+  const toneClass = { in: "bg-emerald-500/15 text-emerald-300", bubble: "bg-amber-500/15 text-amber-300", out: "bg-rose-600/15 text-rose-300" };
+  const counts = all.reduce((acc, r) => { acc[r.tone] = (acc[r.tone] || 0) + 1; return acc; }, {});
+  return (
+    <div>
+      <div className="flex gap-2 mb-3 text-xs">
+        <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300">Qualifying: {counts.in || 0}</span>
+        <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300">Bubble: {counts.bubble || 0}</span>
+        <span className="px-2.5 py-1 rounded-full bg-rose-600/15 text-rose-300">Out: {counts.out || 0}</span>
+      </div>
+      <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+        {all.map((r, i) => (
+          <div key={r.owner + r.team + i} className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/60 last:border-0">
+            <span className="text-base">{FLAGS[r.team]}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{r.owner}</div>
+              <div className="text-[11px] text-slate-500 truncate">{r.team} · Group {r.g} ({r.pos})</div>
+            </div>
+            <span className={"text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap " + toneClass[r.tone]}>{r.statusLabel}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Losers({ teams }) {
+  const all = Object.values(teams).flat().map((t) => ({ ...t, played: t.w + t.d + t.l, gd: (t.gf || 0) - (t.ga || 0) }));
+  all.sort((a, b) => a.pts - b.pts || a.gd - b.gd || a.gf - b.gf || b.ga - a.ga);
+  const worst = all.slice(0, 10);
+  const Cell = ({ children, className }) => <td className={"px-2 py-2 text-center tabular-nums " + (className || "")}>{children}</td>;
+  const Head = ({ children }) => <th className="px-2 py-2 text-center font-semibold text-slate-400">{children}</th>;
+  return (
+    <div>
+      <div className="mb-3">
+        <h2 className="text-base font-bold text-rose-300">🥀 The Hall of Shame</h2>
+        <p className="text-[11px] text-slate-500">The ten most miserable performances — ranked by fewest points, then worst goal difference.</p>
+      </div>
+      <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-slate-800 text-[11px]">
+              <Head>#</Head>
+              <th className="px-2 py-2 text-left font-semibold text-slate-400">Player &amp; Team</th>
+              <Head>P</Head><Head>W</Head><Head>D</Head><Head>L</Head><Head>GF</Head><Head>GA</Head><Head>GD</Head><Head>Pts</Head>
+            </tr>
+          </thead>
+          <tbody>
+            {worst.map((t, i) => (
+              <tr key={t.name} className="border-b border-slate-800/60 last:border-0">
+                <Cell className="text-rose-400 font-bold">{i + 1}</Cell>
+                <td className="px-2 py-2 text-left">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-base leading-none">{FLAGS[t.name]}</span>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{ownerStr(t.name)}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{t.name}</div>
+                    </div>
+                  </div>
+                </td>
+                <Cell className="text-slate-300">{t.played}</Cell>
+                <Cell className="text-slate-300">{t.w}</Cell>
+                <Cell className="text-slate-300">{t.d}</Cell>
+                <Cell className="text-slate-300">{t.l}</Cell>
+                <Cell className="text-slate-300">{t.gf}</Cell>
+                <Cell className="text-slate-300">{t.ga}</Cell>
+                <Cell className={t.gd < 0 ? "text-rose-400 font-semibold" : "text-slate-300"}>{t.gd >= 0 ? "+" : ""}{t.gd}</Cell>
+                <Cell className="font-bold">{t.pts}</Cell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
